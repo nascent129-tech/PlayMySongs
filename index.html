@@ -366,7 +366,9 @@
 
 <script>
   // ---------- data ----------
-  // เพิ่มเพลย์ลิสต์ใหม่ได้โดยเพิ่มอ็อบเจกต์ในอาเรย์นี้
+  // โหมดที่ 1 (per-track): แต่ละเพลงมีไฟล์ของตัวเอง ใส่ field "file" ที่แต่ละเพลง
+  // โหมดที่ 2 (merged): ทั้งเพลย์ลิสต์รวมเป็นไฟล์เดียว ใส่ field "file" ที่ตัวเพลย์ลิสต์ + "start" (วินาที) ที่แต่ละเพลงแทน
+  // เพิ่มเพลย์ลิสต์ใหม่ได้โดยเพิ่มอ็อบเจกต์ในอาเรย์นี้ — จะใช้โหมดไหนก็ได้ ไม่ต้องเหมือนกันทุกเพลย์ลิสต์
   const playlists = [
     {
       id: "playlist-1",
@@ -393,17 +395,40 @@
         { title: "LUCKY LIKE THAT", file: "19.mp3" },
         { title: "Maybe This Is It", file: "20.mp3" }
       ]
+    },
+    {
+      id: "playlist-2",
+      name: "Playlist 2",
+      tracks: [
+        { title: "It is safe", file: "p2-01.mp3" },
+        { title: "Old Addresses", file: "p2-02.mp3" },
+        { title: "Peace Is the New Dream", file: "p2-03.mp3" },
+        { title: "Permission Slip", file: "p2-04.mp3" },
+        { title: "Right here, right now", file: "p2-05.mp3" },
+        { title: "Silly You (Remastered)", file: "p2-06.mp3" },
+        { title: "Recalculate", file: "p2-07.mp3" },
+        { title: "Say It Before Your Body Does", file: "p2-08.mp3" },
+        { title: "Still Me", file: "p2-09.mp3" },
+        { title: "Someone's Good Luck", file: "p2-10.mp3" },
+        { title: "Still lucky", file: "p2-11.mp3" },
+        { title: "Still not too late", file: "p2-12.mp3" },
+        { title: "Still There", file: "p2-13.mp3" },
+        { title: "Rinse", file: "p2-14.mp3" },
+        { title: "Risk it", file: "p2-15.mp3" },
+        { title: "Play the game", file: "p2-16.mp3" },
+        { title: "Some days are really good", file: "p2-17.mp3" },
+        { title: "Not Everything Is About You", file: "p2-18.mp3" },
+        { title: "Still We Rise and Thrive", file: "p2-19.mp3" },
+        { title: "Staying Happy", file: "p2-20.mp3" }
+      ]
     }
   ];
-
-  function driveUrl(track){
-    return track.file;
-  }
 
   // ---------- state ----------
   let currentPlaylistIndex = 0;
   let currentTrackIndex = -1;
   let repeatPlaylist = false;
+  let loadedPlaylistIndex = -1; // ไฟล์เสียงที่โหลดอยู่ตอนนี้เป็นของเพลย์ลิสต์ไหน
 
   const audio = document.getElementById("audio");
   const tabsEl = document.getElementById("tabs");
@@ -412,8 +437,8 @@
   const tracklistEl = document.getElementById("tracklist");
   const nowPlayingLabel = document.getElementById("nowPlayingLabel");
   const nowPlayingTitle = document.getElementById("nowPlayingTitle");
+  const nowPlayingError = document.getElementById("nowPlayingError");
   const playBtn = document.getElementById("playBtn");
-  const playIcon = document.getElementById("playIcon");
   const prevBtn = document.getElementById("prevBtn");
   const nextBtn = document.getElementById("nextBtn");
   const repeatBtn = document.getElementById("repeatBtn");
@@ -425,10 +450,34 @@
   const ICON_PAUSE = '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
 
   function formatTime(sec){
-    if(!isFinite(sec)) return "0:00";
+    if(!isFinite(sec) || sec < 0) return "0:00";
     const m = Math.floor(sec/60);
     const s = Math.floor(sec%60).toString().padStart(2,"0");
     return m+":"+s;
+  }
+
+  function isMerged(pl){
+    return !!pl.file;
+  }
+
+  function trackEnd(playlist, index){
+    return index < playlist.tracks.length - 1
+      ? playlist.tracks[index+1].start
+      : (audio.duration && isFinite(audio.duration) ? audio.duration : Infinity);
+  }
+
+  function showError(msg){
+    nowPlayingError.textContent = msg;
+    nowPlayingError.style.display = "block";
+  }
+  function clearError(){
+    nowPlayingError.style.display = "none";
+    nowPlayingError.textContent = "";
+  }
+
+  function setPlayIcon(playing){
+    const el = document.getElementById("playIcon");
+    if(el) el.outerHTML = '<svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">'+(playing ? ICON_PAUSE : ICON_PLAY)+'</svg>';
   }
 
   function renderTabs(){
@@ -437,15 +486,7 @@
       const btn = document.createElement("button");
       btn.className = "tab" + (i===currentPlaylistIndex ? " active" : "");
       btn.textContent = pl.name;
-      btn.onclick = () => {
-        currentPlaylistIndex = i;
-        currentTrackIndex = -1;
-        audio.pause();
-        renderAll();
-        if(playlists[i].tracks.length > 0){
-          playTrack(i, 0);
-        }
-      };
+      btn.onclick = () => playPlaylistFromStart(i);
       tabsEl.appendChild(btn);
     });
   }
@@ -473,39 +514,72 @@
     renderPlaylist();
   }
 
-  const nowPlayingError = document.getElementById("nowPlayingError");
+  function updateNowPlayingUI(){
+    const pl = playlists[currentPlaylistIndex];
+    const track = pl.tracks[currentTrackIndex];
+    nowPlayingLabel.textContent = "กำลังเล่นจาก " + pl.name;
+    nowPlayingTitle.textContent = track.title;
 
-  function showError(msg){
-    nowPlayingError.textContent = msg;
-    nowPlayingError.style.display = "block";
-  }
-  function clearError(){
-    nowPlayingError.style.display = "none";
-    nowPlayingError.textContent = "";
+    if(isMerged(pl)){
+      const dur = trackEnd(pl, currentTrackIndex) - track.start;
+      seek.max = isFinite(dur) ? dur : 0;
+      timeTotal.textContent = formatTime(dur);
+    } else {
+      const dur = audio.duration;
+      seek.max = (dur && isFinite(dur)) ? dur : 0;
+      timeTotal.textContent = formatTime(dur);
+    }
   }
 
+  // เล่นเพลงที่ระบุ — โหมด merged จะกระโดดตำแหน่งในไฟล์รวม, โหมด per-track จะโหลดไฟล์ของเพลงนั้นแยก
   function playTrack(playlistIndex, trackIndex){
     currentPlaylistIndex = playlistIndex;
     currentTrackIndex = trackIndex;
-    const track = playlists[playlistIndex].tracks[trackIndex];
+    const pl = playlists[playlistIndex];
+    const track = pl.tracks[trackIndex];
 
     clearError();
-    audio.src = driveUrl(track);
-    audio.play().catch((err) => {
-      showError("เล่นเพลงนี้ไม่ได้ (" + track.title + ") — เช็คว่าอัปโหลดไฟล์ " + track.file + " ขึ้น GitHub แล้วหรือยัง");
-    });
 
-    nowPlayingLabel.textContent = "กำลังเล่นจาก " + playlists[playlistIndex].name;
-    nowPlayingTitle.textContent = track.title;
+    if(isMerged(pl)){
+      if(loadedPlaylistIndex !== playlistIndex){
+        audio.src = pl.file;
+        loadedPlaylistIndex = playlistIndex;
+        audio.addEventListener("loadedmetadata", function onLoaded(){
+          audio.currentTime = track.start;
+          audio.play().catch((err) => {
+            showError("เล่นเพลย์ลิสต์นี้ไม่ได้ — เช็คว่าอัปโหลดไฟล์ " + pl.file + " ขึ้น GitHub แล้วหรือยัง");
+          });
+          updateNowPlayingUI();
+          audio.removeEventListener("loadedmetadata", onLoaded);
+        });
+      } else {
+        audio.currentTime = track.start;
+        audio.play().catch((err) => {
+          showError("เล่นเพลงนี้ไม่ได้ (" + track.title + ")");
+        });
+      }
+    } else {
+      audio.src = track.file;
+      loadedPlaylistIndex = playlistIndex;
+      audio.play().catch((err) => {
+        showError("เล่นเพลงนี้ไม่ได้ (" + track.title + ") — เช็คว่าอัปโหลดไฟล์ " + track.file + " ขึ้น GitHub แล้วหรือยัง");
+      });
+    }
 
+    updateNowPlayingUI();
     renderPlaylist();
+  }
+
+  function playPlaylistFromStart(playlistIndex){
+    audio.pause();
+    if(playlists[playlistIndex].tracks.length > 0){
+      playTrack(playlistIndex, 0);
+    }
   }
 
   function togglePlay(){
     if(currentTrackIndex === -1){
-      if(playlists[currentPlaylistIndex].tracks.length > 0){
-        playTrack(currentPlaylistIndex, 0);
-      }
+      playPlaylistFromStart(currentPlaylistIndex);
       return;
     }
     if(audio.paused){
@@ -527,14 +601,17 @@
   }
 
   function playPrev(){
-    if(audio.currentTime > 3){
-      audio.currentTime = 0;
+    const pl = playlists[currentPlaylistIndex];
+    const track = pl.tracks[currentTrackIndex];
+    const trackStart = track.start || 0;
+    if(audio.currentTime - trackStart > 3){
+      audio.currentTime = trackStart;
       return;
     }
     if(currentTrackIndex > 0){
       playTrack(currentPlaylistIndex, currentTrackIndex - 1);
     } else {
-      audio.currentTime = 0;
+      audio.currentTime = trackStart;
     }
   }
 
@@ -548,37 +625,79 @@
     repeatBtn.classList.toggle("on", repeatPlaylist);
   };
 
-  audio.addEventListener("play", () => {
-    const el = document.getElementById("playIcon");
-    if(el) el.outerHTML = '<svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">'+ICON_PAUSE+'</svg>';
+  audio.addEventListener("play", () => setPlayIcon(true));
+  audio.addEventListener("pause", () => setPlayIcon(false));
+
+  // per-track mode: ไฟล์เพลงนี้จบ → ไปเพลงถัดไป (โหลดไฟล์ใหม่)
+  // merged mode: ไฟล์ทั้งไฟล์จบ (เพลงสุดท้ายของเพลย์ลิสต์จบแล้ว) → วนซ้ำถ้าเปิดไว้
+  audio.addEventListener("ended", () => {
+    const pl = playlists[currentPlaylistIndex];
+    if(!pl) return;
+    if(isMerged(pl)){
+      if(repeatPlaylist){
+        playTrack(currentPlaylistIndex, 0);
+      }
+    } else {
+      playNext();
+    }
   });
-  audio.addEventListener("pause", () => {
-    const el = document.getElementById("playIcon");
-    if(el) el.outerHTML = '<svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">'+ICON_PLAY+'</svg>';
-  });
-  audio.addEventListener("ended", playNext);
+
   audio.addEventListener("error", () => {
-    const track = playlists[currentPlaylistIndex]?.tracks[currentTrackIndex];
-    if(track){
+    const pl = playlists[currentPlaylistIndex];
+    const track = pl ? pl.tracks[currentTrackIndex] : null;
+    if(!pl) return;
+    if(isMerged(pl)){
+      showError("โหลดเพลย์ลิสต์นี้ไม่ได้ — เช็คว่าไฟล์ " + pl.file + " อยู่ใน repo แล้วหรือยัง");
+    } else if(track){
       showError("โหลดเพลงนี้ไม่ได้ (" + track.title + ") — เช็คว่าไฟล์ " + track.file + " อยู่ใน repo แล้วหรือยัง");
     }
   });
 
-  audio.addEventListener("loadedmetadata", () => {
-    seek.max = audio.duration || 0;
-    timeTotal.textContent = formatTime(audio.duration);
-  });
+  // ทุกครั้งที่เวลาขยับ — merged mode: เช็คว่าข้ามเข้าเพลงถัดไปในไฟล์รวมหรือยัง แล้วอัปเดตหน้าจอให้ตรง
+  // per-track mode: อัปเดตแถบเวลาตามปกติ (แต่ละเพลงคือไฟล์ของตัวเอง ไม่ต้องคำนวณ offset)
   audio.addEventListener("timeupdate", () => {
-    if(!seek.matches(":active")){
-      seek.value = audio.currentTime;
+    const pl = playlists[currentPlaylistIndex];
+    if(!pl || currentTrackIndex === -1) return;
+
+    if(isMerged(pl)){
+      while(currentTrackIndex < pl.tracks.length - 1 && audio.currentTime >= trackEnd(pl, currentTrackIndex) - 0.05){
+        currentTrackIndex++;
+        updateNowPlayingUI();
+        renderPlaylist();
+      }
+      const track = pl.tracks[currentTrackIndex];
+      const posInTrack = audio.currentTime - track.start;
+      if(!seek.matches(":active")){
+        seek.value = posInTrack;
+      }
+      timeCurrent.textContent = formatTime(posInTrack);
+    } else {
+      if(!seek.matches(":active")){
+        seek.value = audio.currentTime;
+      }
+      timeCurrent.textContent = formatTime(audio.currentTime);
     }
-    timeCurrent.textContent = formatTime(audio.currentTime);
-  });
-  seek.addEventListener("input", () => {
-    audio.currentTime = seek.value;
   });
 
-  // media session (lock-screen controls where supported)
+  seek.addEventListener("input", () => {
+    const pl = playlists[currentPlaylistIndex];
+    if(isMerged(pl)){
+      const track = pl.tracks[currentTrackIndex];
+      audio.currentTime = track.start + Number(seek.value);
+    } else {
+      audio.currentTime = Number(seek.value);
+    }
+  });
+
+  audio.addEventListener("loadedmetadata", () => {
+    const pl = playlists[currentPlaylistIndex];
+    if(pl && !isMerged(pl)){
+      seek.max = audio.duration || 0;
+      timeTotal.textContent = formatTime(audio.duration);
+    }
+  });
+
+  // media session (ปุ่มควบคุมที่หน้าจอล็อก)
   if("mediaSession" in navigator){
     navigator.mediaSession.setActionHandler("play", togglePlay);
     navigator.mediaSession.setActionHandler("pause", togglePlay);
