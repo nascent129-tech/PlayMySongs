@@ -372,32 +372,32 @@
       id: "playlist-1",
       name: "Playlist 1",
       tracks: [
-        { title: "A day like this", driveId: "13hyehzj6yFrPVKy3mqFvmAf06d3g1Ug8" },
-        { title: "After a long day", driveId: "1el27yY1bliDnOaTo-vI1e8iJ7WrG9W-z" },
-        { title: "After Two Glasses of Red", driveId: "1UZEm4mgn-MfkA_aWZpvqwyMWRiK5DSXs" },
-        { title: "And Suddenly", driveId: "1OgONIxrCFYBHwTDk89jlUxSzgr4Nbcr3" },
-        { title: "Borrowed Afternoon", driveId: "1QByws7yLIB7bB4odenUqD40tNSD_tBai" },
-        { title: "Done for today", driveId: "1gS2iiGHvNAemNrx9rtyTniddRrnCCdyf" },
-        { title: "Five minute break", driveId: "17zEOZTFk4ItoY2tbcJPqH8cLVlGN96Tb" },
-        { title: "Forty Feels Funny", driveId: "1V1vLZP7yW3bQOVoIduJV-72LKylJSWJW" },
-        { title: "Here in Human Form", driveId: "1GgmHTrkmTdK7YYgoFRoR60aCR7PAhMdu" },
-        { title: "Hidden in the seed", driveId: "1uFNMGUwfQP5uNft6mXTpc037cuyikaOK" },
-        { title: "If You Let It", driveId: "1I0aEiUkBq35chLGzlb8JuTAE5n6tFrm2" },
-        { title: "In Hindsight", driveId: "10BvObefhpWXfmnPVAdLmfKDdrUBs4urW" },
-        { title: "In the Flow", driveId: "1wOSOIiMRmY6r4vCWoTp3qdjo11UAiy9R" },
-        { title: "It always works out♡", driveId: "1irKfzT88NjC_13zdduCjL5huKtMnodIt" },
-        { title: "Just feels right", driveId: "1MN3PeW9JG8ee8a_ZjirRr9YfUwWSasSb" },
-        { title: "Let it pass", driveId: "1I8QCj_W61PLYxFOnYq5hmjAsZy2d9utp" },
-        { title: "Life Can Be Easy", driveId: "18bwXsKtFdlptuIH38viH6LtNKYuAxNhv" },
-        { title: "Liminality (In Between)", driveId: "1d-icIZJQLeBpK8OHqzFOBhcpzKpN4VnZ" },
-        { title: "LUCKY LIKE THAT", driveId: "1OZeoMzVQ3RfhVO53Y2M96Z03BmP7Yl1a" },
-        { title: "Maybe This Is It", driveId: "1ll2erO3tiiSnv5nfUSSMW7QsCrhFPS1l" }
+        { title: "A day like this", file: "audio/playlist-1/01.mp3" },
+        { title: "After a long day", file: "audio/playlist-1/02.mp3" },
+        { title: "After Two Glasses of Red", file: "audio/playlist-1/03.mp3" },
+        { title: "And Suddenly", file: "audio/playlist-1/04.mp3" },
+        { title: "Borrowed Afternoon", file: "audio/playlist-1/05.mp3" },
+        { title: "Done for today", file: "audio/playlist-1/06.mp3" },
+        { title: "Five minute break", file: "audio/playlist-1/07.mp3" },
+        { title: "Forty Feels Funny", file: "audio/playlist-1/08.mp3" },
+        { title: "Here in Human Form", file: "audio/playlist-1/09.mp3" },
+        { title: "Hidden in the seed", file: "audio/playlist-1/10.mp3" },
+        { title: "If You Let It", file: "audio/playlist-1/11.mp3" },
+        { title: "In Hindsight", file: "audio/playlist-1/12.mp3" },
+        { title: "In the Flow", file: "audio/playlist-1/13.mp3" },
+        { title: "It always works out♡", file: "audio/playlist-1/14.mp3" },
+        { title: "Just feels right", file: "audio/playlist-1/15.mp3" },
+        { title: "Let it pass", file: "audio/playlist-1/16.mp3" },
+        { title: "Life Can Be Easy", file: "audio/playlist-1/17.mp3" },
+        { title: "Liminality (In Between)", file: "audio/playlist-1/18.mp3" },
+        { title: "LUCKY LIKE THAT", file: "audio/playlist-1/19.mp3" },
+        { title: "Maybe This Is It", file: "audio/playlist-1/20.mp3" }
       ]
     }
   ];
 
-  function driveUrl(id){
-    return "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
+  function driveUrl(track){
+    return track.file;
   }
 
   // ---------- state ----------
@@ -490,9 +490,9 @@
     const track = playlists[playlistIndex].tracks[trackIndex];
 
     clearError();
-    audio.src = driveUrl(track.driveId);
+    audio.src = driveUrl(track);
     audio.play().catch((err) => {
-      showError("เล่นเพลงนี้ไม่ได้ (" + track.title + ") — ลองเช็คลิงก์ Drive อีกครั้ง");
+      showError("เล่นเพลงนี้ไม่ได้ (" + track.title + ") — เช็คว่าอัปโหลดไฟล์ " + track.file + " ขึ้น GitHub แล้วหรือยัง");
     });
 
     nowPlayingLabel.textContent = "กำลังเล่นจาก " + playlists[playlistIndex].name;
@@ -559,7 +559,7 @@
   audio.addEventListener("error", () => {
     const track = playlists[currentPlaylistIndex]?.tracks[currentTrackIndex];
     if(track){
-      showError("โหลดเพลงนี้ไม่ได้ (" + track.title + ") — เช็คสิทธิ์แชร์ลิงก์ Drive หรือชื่อไฟล์");
+      showError("โหลดเพลงนี้ไม่ได้ (" + track.title + ") — เช็คว่าไฟล์ " + track.file + " อยู่ใน repo แล้วหรือยัง");
     }
   });
 
