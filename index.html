@@ -549,7 +549,8 @@
   };
 
   audio.addEventListener("play", () => {
-    playIcon.outerHTML = '<svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">'+ICON_PAUSE+'</svg>';
+    const el = document.getElementById("playIcon");
+    if(el) el.outerHTML = '<svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">'+ICON_PAUSE+'</svg>';
   });
   audio.addEventListener("pause", () => {
     const el = document.getElementById("playIcon");
